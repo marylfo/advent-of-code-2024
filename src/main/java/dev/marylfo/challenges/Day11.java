@@ -10,10 +10,15 @@ import static dev.marylfo.services.FileService.getLines;
 
 public class Day11 {
 
+    private record StoneBlink(BigInteger number, BigInteger blink) {}
+
     private static final HashMap<BigInteger, Stone> stones = new HashMap<>();
-    private static final HashMap<BigInteger, List<Stone>> nextStonesCache = new HashMap<>(
-            Map.of(BigInteger.ZERO, List.of(new Stone(BigInteger.ONE)))
-    );
+    private static final HashMap<BigInteger, List<Stone>> nextStonesCache = new HashMap<>(Map.of(BigInteger.ZERO, List.of(new Stone(BigInteger.ONE))));
+    private static final HashMap<StoneBlink, BigInteger> countCache = new HashMap<>();
+
+    private static final List<Stone> initialArrangement = Arrays.stream(getLines("11.txt").getFirst().split(" "))
+            .map(Stone::of)
+            .toList();
 
     static class Stone {
 
@@ -24,16 +29,17 @@ public class Day11 {
         }
 
         static Stone of(String number) {
-            var key = new BigInteger(number);
-
-            if (!stones.containsKey(key)) {
-                stones.put(key, new Stone(key));
-            }
-
-            return stones.get(key);
+            return of(new BigInteger(number));
         }
 
-        List<Stone> change() {
+        static Stone of(BigInteger number) {
+            if (!stones.containsKey(number)) {
+                stones.put(number, new Stone(number));
+            }
+            return stones.get(number);
+        }
+
+        List<Stone> afterOneBlink() {
             calculateStones();
             return nextStonesCache.get(number);
         }
@@ -45,30 +51,21 @@ public class Day11 {
 
             if (number.toString().length() % 2 == 0) {
                 var numberStr = number.toString();
-                var nextStone = List.of(
+                nextStonesCache.put(number, List.of(
                         Stone.of(numberStr.substring(0, numberStr.length()/2)),
-                        Stone.of(numberStr.substring(numberStr.length()/2)));
-                nextStonesCache.put(number, nextStone);
+                        Stone.of(numberStr.substring(numberStr.length()/2))));
             } else {
-                var nextStone = List.of(new Stone(number.multiply(BigInteger.valueOf(2024))));
-                nextStonesCache.put(number, nextStone);
+                nextStonesCache.put(number, List.of(new Stone(number.multiply(BigInteger.valueOf(2024)))));
             }
         }
-    }
 
-    private static final List<Stone> initialArrangement = Arrays.stream(getLines("11.txt").getFirst().split(" "))
-            .map(Stone::of)
-            .toList();
-
-    private static List<Stone> afterOneBlink(List<Stone> input) {
-        return input.stream().map(Stone::change).flatMap(List::stream).toList();
     }
 
     private static List<Stone> multipleBlink(Stone s, int time) {
         var stones = List.of(s);
 
         for (int blink = 0; blink < time; blink++) {
-            stones = afterOneBlink(stones);
+            stones = stones.stream().map(Stone::afterOneBlink).flatMap(List::stream).toList();
         }
 
         return stones;
@@ -81,8 +78,32 @@ public class Day11 {
         System.out.println("Part one answer: " + numOfStone);
     }
 
+    private static BigInteger getCount(StoneBlink stoneBlink) {
+        if (countCache.containsKey(stoneBlink)) {
+            return countCache.get(stoneBlink);
+        }
+
+        if (stoneBlink.blink.equals(BigInteger.ZERO)) {
+            return BigInteger.ONE;
+        } else {
+            var count = Stone.of(stoneBlink.number).afterOneBlink()
+                    .stream().map(num -> getCount(new StoneBlink(num.number, stoneBlink.blink.subtract(BigInteger.ONE))))
+                    .reduce(BigInteger.ZERO, BigInteger::add);
+            countCache.put(stoneBlink, count);
+            return count;
+        }
+    }
+
+    private static void partTwo() {
+        var numOfStone = initialArrangement.stream()
+                .map(stone -> getCount(new StoneBlink(stone.number, new BigInteger("75"))))
+                .reduce(BigInteger.ZERO, BigInteger::add);
+        System.out.println("Part two answer: " + numOfStone);
+    }
+
     public static void main(String[] args) {
         partOne();
+        partTwo();
     }
 
 }
